@@ -80,9 +80,13 @@
   }
 
   function insertBody(text, done) {
+    // HTML-Einfügung, damit Absätze/Zeilenumbrüche erhalten bleiben.
+    // Keine Font-Styles setzen -> Standardschrift des Clients bleibt aktiv (F4).
+    var esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    var html = "<div>" + esc.split(/\r?\n/).join("<br>") + "</div>";
     Office.context.mailbox.item.body.setSelectedDataAsync(
-      text,
-      { coercionType: Office.CoercionType.Text },
+      html,
+      { coercionType: Office.CoercionType.Html },
       function (res) {
         if (res.status === Office.AsyncResultStatus.Succeeded) { done(null); }
         else { done(res.error); }
