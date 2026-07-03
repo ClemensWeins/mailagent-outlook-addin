@@ -35,7 +35,16 @@
     <a id="openExternal" href="#" target="_blank" rel="noopener">Im Browser &ouml;ffnen &#8599;</a>
   </header>
 
-  <iframe id="agentFrame" title="MailAgent Chat" allow="clipboard-read; clipboard-write; microphone"></iframe>
+  <div id="agentPanel" style="flex:1 1 auto; padding:16px 14px; background:#fff; overflow:auto;">
+    <p style="margin:0 0 10px; line-height:1.45;">
+      <strong>So funktioniert's:</strong><br>
+      1. MailAgent im Copilot-Chat &ouml;ffnen (Button unten)<br>
+      2. Entwurf anfordern, z.&nbsp;B. <em>&quot;E-Mail an Herrn Senf: Termin verschieben&quot;</em><br>
+      3. Antwort kopieren und unten &uuml;bernehmen &ndash; der Text landet an der Cursorposition.
+    </p>
+    <button class="primary" id="btnOpenAgent" style="width:100%; padding:10px;">MailAgent im Copilot-Chat &ouml;ffnen &#8599;</button>
+    <p class="hint" style="margin-top:8px;">Der Chat &ouml;ffnet sich in einem eigenen Fenster (Anmeldung mit deinem M365-Konto; der Agent sieht nur, was du siehst). Dort einmal unter &quot;Agents&quot; &rarr; MailAgent w&auml;hlen.</p>
+  </div>
 
   <div class="tools">
     <h2>In die E-Mail &uuml;bernehmen</h2>
@@ -52,10 +61,13 @@
 </div>
 
 <script>
-  var AGENT_URL = "https://copilotstudio.preview.microsoft.com/environments/Default-66cca675-2e74-4161-bb72-ccc695c62857/bots/crc7e_mailagent_ihs2ua/canvas?__version__=2&enableFileAttachment=false&cliAgent=true";
+  // M365 Copilot Chat (dort MailAgent unter "Agents" waehlen). Demo-/Web-Kanal wird bewusst
+  // NICHT genutzt: er erfordert "Keine Authentifizierung" und wuerde das Sicherheitsmodell
+  // (delegierte Endnutzer-Auth, N2.2) aushebeln. Chat im Panel folgt in V2 (Agents SDK).
+  var AGENT_URL = "https://m365.cloud.microsoft/chat";
 
-  document.getElementById("agentFrame").src = AGENT_URL;
   document.getElementById("openExternal").href = AGENT_URL;
+  document.getElementById("btnOpenAgent").onclick = function () { window.open(AGENT_URL, "_blank"); };
 
   function setStatus(msg, isErr) {
     var el = document.getElementById("status");
