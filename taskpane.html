@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MailAgent</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; color: #242424; background: #faf9f8; }
+    .wrap { display: flex; flex-direction: column; height: 100%; }
+    header { padding: 8px 12px; background: #0f6cbd; color: #fff; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    header a { color: #d6e8f7; font-size: 11px; text-decoration: none; }
+    header a:hover { text-decoration: underline; }
+    #agentFrame { flex: 1 1 auto; width: 100%; border: none; min-height: 220px; background: #fff; }
+    .tools { flex: 0 0 auto; border-top: 2px solid #0f6cbd; padding: 10px 12px; background: #fff; }
+    .tools h2 { font-size: 12px; margin: 0 0 6px; color: #424242; text-transform: uppercase; letter-spacing: .4px; }
+    textarea { width: 100%; height: 84px; resize: vertical; border: 1px solid #c7c7c7; border-radius: 4px; padding: 6px; font: inherit; }
+    input[type=text] { width: 100%; border: 1px solid #c7c7c7; border-radius: 4px; padding: 6px; font: inherit; margin-top: 6px; }
+    .btnrow { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    button { border: none; border-radius: 4px; padding: 7px 10px; font: inherit; cursor: pointer; }
+    .primary { background: #0f6cbd; color: #fff; }
+    .primary:hover { background: #0c599c; }
+    .secondary { background: #e6e6e6; }
+    .secondary:hover { background: #d6d6d6; }
+    #status { margin-top: 6px; min-height: 16px; font-size: 12px; color: #107c10; }
+    #status.err { color: #b00020; }
+    .hint { color: #616161; font-size: 11px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span>MailAgent</span>
+    <a id="openExternal" href="#" target="_blank" rel="noopener">Im Browser &ouml;ffnen &#8599;</a>
+  </header>
+
+  <iframe id="agentFrame" title="MailAgent Chat" allow="clipboard-read; clipboard-write; microphone"></iframe>
+
+  <div class="tools">
+    <h2>In die E-Mail &uuml;bernehmen</h2>
+    <textarea id="draftText" placeholder="Entwurfstext hier einf&uuml;gen (im Chat 'Kopieren' klicken, dann hier Strg+V) &ndash; oder Button 'Aus Zwischenablage' nutzen."></textarea>
+    <input type="text" id="subjectText" placeholder="Betreff (optional &ndash; wird aus 'Betreff:'-Zeile erkannt)"/>
+    <div class="btnrow">
+      <button class="primary" id="btnInsertAll">Entwurf &uuml;bernehmen</button>
+      <button class="secondary" id="btnClipboard">Aus Zwischenablage</button>
+      <button class="secondary" id="btnInsertBody">Nur Text einf&uuml;gen</button>
+    </div>
+    <div id="status"></div>
+    <div class="hint">Der Text wird an der Cursorposition eingef&uuml;gt, die Signatur bleibt unber&uuml;hrt. Kein automatischer Versand.</div>
+  </div>
+</div>
+
+<script>
+  var AGENT_URL = "https://copilotstudio.preview.microsoft.com/environments/Default-66cca675-2e74-4161-bb72-ccc695c62857/bots/crc7e_mailagent_ihs2ua/canvas?__version__=2&enableFileAttachment=false&cliAgent=true";
+
+  document.getElementById("agentFrame").src = AGENT_URL;
+  document.getElementById("openExternal").href = AGENT_URL;
+
+  function setStatus(msg, isErr) {
+    var el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = isErr ? "err" : "";
+  }
+
+  // "Betreff:"-Zeile aus dem Text extrahieren
+  function splitSubject(text) {
+    var lines = text.split(/\r?\n/);
+    var subject = null;
+    var bodyLines = [];
+    var found = false;
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^\s*Betreff\s*:\s*(.+)$/i);
+      if (!found && m) { subject = m[1].trim(); found = true; continue; }
+      bodyLines.push(lines[i]);
+    }
+    // fuehrende Leerzeilen entfernen
+    while (bodyLines.length && bodyLines[0].trim() === "") bodyLines.shift();
+    return { subject: subject, body: bodyLines.join("\n") };
+  }
+
+  function insertBody(text, done) {
+    Office.context.mailbox.item.body.setSelectedDataAsync(
+      text,
+      { coercionType: Office.CoercionType.Text },
+      function (res) {
+        if (res.status === Office.AsyncResultStatus.Succeeded) { done(null); }
+        else { done(res.error); }
+      }
+    );
+  }
+
+  function setSubject(subject, done) {
+    Office.context.mailbox.item.subject.setAsync(subject, function (res) {
+      if (res.status === Office.AsyncResultStatus.Succeeded) { done(null); }
+      else { done(res.error); }
+    });
+  }
+
+  Office.onReady(function () {
+    document.getElementById("btnClipboard").onclick = function () {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        setStatus("Zwischenablage nicht verfügbar – bitte per Strg+V ins Textfeld einfügen.", true);
+        return;
+      }
+      navigator.clipboard.readText().then(function (t) {
+        if (!t) { setStatus("Zwischenablage ist leer.", true); return; }
+        var parts = splitSubject(t);
+        document.getElementById("draftText").value = parts.body;
+        if (parts.subject) document.getElementById("subjectText").value = parts.subject;
+        setStatus("Text übernommen – jetzt 'Entwurf übernehmen' klicken.");
+      }).catch(function () {
+        setStatus("Kein Zugriff auf die Zwischenablage – bitte per Strg+V ins Textfeld einfügen.", true);
+      });
+    };
+
+    document.getElementById("btnInsertBody").onclick = function () {
+      var t = document.getElementById("draftText").value;
+      if (!t.trim()) { setStatus("Textfeld ist leer.", true); return; }
+      insertBody(t, function (err) {
+        setStatus(err ? "Fehler beim Einfügen: " + err.message : "Text eingefügt.", !!err);
+      });
+    };
+
+    document.getElementById("btnInsertAll").onclick = function () {
+      var raw = document.getElementById("draftText").value;
+      if (!raw.trim()) { setStatus("Textfeld ist leer.", true); return; }
+      var parts = splitSubject(raw);
+      var subject = document.getElementById("subjectText").value.trim() || parts.subject;
+      insertBody(parts.body, function (err) {
+        if (err) { setStatus("Fehler beim Einfügen: " + err.message, true); return; }
+        if (subject) {
+          setSubject(subject, function (err2) {
+            setStatus(err2 ? "Text ok, Betreff fehlgeschlagen: " + err2.message : "Betreff gesetzt und Text eingefügt.", !!err2);
+          });
+        } else {
+          setStatus("Text eingefügt.");
+        }
+      });
+    };
+  });
+</script>
+</body>
+</html>
